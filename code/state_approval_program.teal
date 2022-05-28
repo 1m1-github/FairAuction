@@ -1,0 +1,147 @@
+// CODE NOT WORKING YET - WORK IN PROGRESS - IN GIT ONLY FOR SAFETY
+
+// scratch
+
+#pragma version 6
+
+// create
+txn ApplicationID
+int 0
+==
+bnz handle_create
+
+// init
+handle_init:
+txn OnCompletion
+int NoOp
+==
+bnz handle_noop
+
+txn OnCompletion
+int OptIn
+==
+bnz handle_optin
+
+txn OnCompletion
+int CloseOut
+==
+bnz handle_closeout
+
+txn OnCompletion
+int UpdateApplication
+==
+bnz handle_updateapp
+
+txn OnCompletion
+int DeleteApplication
+==
+bnz handle_deleteapp
+
+// Unexpected OnCompletion value. Should be unreachable.
+b decline
+////////////////
+
+
+////////////////
+handle_noop:
+
+txna ApplicationArgs 0
+byte "commit"
+==
+bnz handle_commit
+
+txna ApplicationArgs 0
+byte "withdraw"
+==
+bnz handle_withdraw
+
+// Unexpected first arg
+b decline
+////////////////
+
+////////////////
+handle_commit:
+b approve
+////////////////
+
+////////////////
+handle_withdraw:
+b approve
+////////////////
+
+///////////////
+// Update only by creator - for now
+// TODO maybe make updating impossible for safety and assurance
+handle_updateapp:
+handle_deleteapp:
+global GroupSize
+int 1
+==
+assert
+
+global CreatorAddress
+txn Sender
+==
+assert
+
+b approve
+///////////////
+
+///////////////
+// handle closeOut, cannot delete app, no decline
+// handle_updateapp:
+// handle_deleteapp:
+handle_closeout:
+b decline
+///////////////
+
+///////////////
+handle_optin:
+b approve
+///////////////
+
+////////////////
+handle_create:
+byte "TKN"
+txna Assets 0
+app_global_put
+byte "CCY"
+txna Assets 1
+app_global_put
+byte "SB"
+txna ApplicationArgs 0
+btoi
+app_global_put
+byte "DB"
+txna ApplicationArgs 1
+btoi
+app_global_put
+byte "EB"
+txna ApplicationArgs 2
+btoi
+app_global_put
+byte "SP"
+txna ApplicationArgs 3
+btoi
+app_global_put
+byte "DP"
+txna ApplicationArgs 4
+btoi
+app_global_put
+byte "T"
+txna ApplicationArgs 5
+btoi
+app_global_put
+b handle_init
+////////////////
+
+////////////////
+// end branches
+decline:
+int 0
+return
+
+approve:
+int 1
+return
+////////////////

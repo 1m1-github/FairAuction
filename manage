@@ -1,0 +1,70 @@
+// https://developer.algorand.org/docs/run-a-node/setup/install/#sync-node-network-using-fast-catchup
+// chrome://inspect/#devices
+
+// set env vars for terminal
+export ALGORAND_DATA="$HOME/node/testnetdata"
+export WALLET=2i2i
+export CODE_DIR=./code
+export TXNS_DIR=./txns
+export SYSTEM_APPROVAL_FILE=$CODE_DIR/state_approval_program.teal
+export SYSTEM_CLEAR_FILE=$CODE_DIR/state_clear_program.teal
+export CREATOR=2I2IXTP67KSNJ5FQXHUJP5WZBX2JTFYEBVTBYFF3UUJ3SQKXSZ3QHZNNPY
+export SYSTEM_ID=92456521
+export SYSTEM_ACCOUNT=
+export TKN=91697272
+export CCY=92125658
+export SB=
+export DB=15
+export EB=$(($SB+$DB*5))
+export SP=10
+export DP=1
+export T=100
+export A=NVVMVMEFGTLIVW3YL6R7ADZAWU66HUBNHI6OH264U5YKVZVPG67EMB5EWM
+
+goal app create --foreign-asset $TKN --foreign-asset $CCY --app-arg="int:$SB" --app-arg="int:$DB" --app-arg="int:$EB" --app-arg="int:$SP" --app-arg="int:$DP" --app-arg="int:$T" --creator $CREATOR --approval-prog $SYSTEM_APPROVAL_FILE --clear-prog $SYSTEM_CLEAR_FILE --global-byteslices 0 --global-ints 11 --local-byteslices 0 --local-ints 2 --extra-pages 0 --on-completion OptIn -w $WALLET --out=$TXNS_DIR/create.stxn
+goal clerk dryrun -t $TXNS_DIR/create.stxn --dryrun-dump -o $TXNS_DIR/create_dryrun.json
+tealdbg debug $SYSTEM_APPROVAL_FILE -d $TXNS_DIR/create_dryrun.json
+
+goal app info --app-id $SYSTEM_ID
+goal account info -a $SYSTEM_ACCOUNT
+goal account balance -a $SYSTEM_ACCOUNT
+
+goal asset create --creator $CREATOR --total 1000000000 --unitname NOVALUE --decimals 0 -w $WALLET
+goal app optin --app-id $SYSTEM_ID --from $A -w $WALLET
+goal asset send -a 20 --assetid $ASA -f $CREATOR -t $SYSTEM_ACCOUNT -w $WALLET
+goal asset send -a 30 --assetid $ASA_2 -f $CREATOR -t $SYSTEM_ACCOUNT -w $WALLET
+goal asset send -a 0 --assetid $ASA -f $A -t $A -w $WALLET
+
+goal app delete --app-id $SYSTEM_ID --from $CREATOR
+goal app update --app-id=$SYSTEM_ID --from=$CREATOR --approval-prog $SYSTEM_APPROVAL_FILE --clear-prog $SYSTEM_CLEAR_FILE -w $WALLET
+
+// optin
+goal app call --from=$CREATOR --app-id=$SYSTEM_ID --app-arg="str:optin" --foreign-asset $ASA -w $WALLET --out=$TXNS_DIR/optin.stxn
+goal clerk dryrun -t $TXNS_DIR/optin.stxn --dryrun-dump -o $TXNS_DIR/optin_dryrun.json
+tealdbg debug $SYSTEM_APPROVAL_FILE -d $TXNS_DIR/optin_dryrun.json
+
+// update - first asset is dao token - rest are ccy tokens - all swaps are dao vs ccy
+goal app call --from=$CREATOR --app-id=$SYSTEM_ID --app-arg="str:update" --foreign-asset $ASA --foreign-asset 0 --foreign-asset $ASA_2 --app-arg="int:9000" --app-arg="int:500" --app-arg="int:500" -w $WALLET --out=$TXNS_DIR/update.stxn
+goal clerk dryrun -t $TXNS_DIR/update.stxn --dryrun-dump -o $TXNS_DIR/update_dryrun.json
+tealdbg debug $SYSTEM_APPROVAL_FILE -d $TXNS_DIR/update_dryrun.json
+
+// swap ALGO->ASA
+goal clerk send --from=$A --to=$SYSTEM_ACCOUNT --amount=1000000 --out=$TXNS_DIR/swap_send.txn -w $WALLET
+goal app call --from=$A --app-id=$SYSTEM_ID --app-arg="str:swap" --foreign-asset $ASA --out=$TXNS_DIR/swap_call.txn -w $WALLET
+cat $TXNS_DIR/swap_send.txn $TXNS_DIR/swap_call.txn > $TXNS_DIR/combinedtransactions.txn
+goal clerk group --infile $TXNS_DIR/combinedtransactions.txn --outfile $TXNS_DIR/groupedtransactions.txn
+goal clerk sign --infile $TXNS_DIR/groupedtransactions.txn --outfile $TXNS_DIR/swap.stxn -w $WALLET
+goal clerk dryrun -t $TXNS_DIR/swap.stxn --dryrun-dump -o $TXNS_DIR/swap_dryrun.json
+tealdbg debug $SYSTEM_APPROVAL_FILE -d $TXNS_DIR/swap_dryrun.json --group-index 1
+
+// swap ASA->ALGO
+goal asset send --assetid=$ASA --from=$A --to=$SYSTEM_ACCOUNT --amount=2 --out=$TXNS_DIR/swap_send.txn -w $WALLET
+goal app call --from=$A --app-id=$SYSTEM_ID --app-arg="str:swap" --foreign-asset 0 --out=$TXNS_DIR/swap_call.txn -w $WALLET
+cat $TXNS_DIR/swap_send.txn $TXNS_DIR/swap_call.txn > $TXNS_DIR/combinedtransactions.txn
+goal clerk group --infile $TXNS_DIR/combinedtransactions.txn --outfile $TXNS_DIR/groupedtransactions.txn
+goal clerk sign --infile $TXNS_DIR/groupedtransactions.txn --outfile $TXNS_DIR/swap.stxn -w $WALLET
+goal clerk dryrun -t $TXNS_DIR/swap.stxn --dryrun-dump -o $TXNS_DIR/swap_dryrun.json
+tealdbg debug $SYSTEM_APPROVAL_FILE -d $TXNS_DIR/swap_dryrun.json --group-index 1
+
+// read
+goal app read --app-id=$SYSTEM_ID --global
